@@ -1,6 +1,7 @@
 import os
 from chromadb import PersistentClient
 
+#Api de chroma
 class Chroma:
     def __init__(self, persist_directory="./chroma_db"):
         self.directorio_persistente = persist_directory
@@ -36,7 +37,7 @@ class Chroma:
             return
 
         try:
-            self.collection.add(
+            self.collection.add( #hace la coleccion
                 documents=[contenido],
                 metadatas=[{"nombre": nombre_documento}],
                 ids=[nombre_documento]

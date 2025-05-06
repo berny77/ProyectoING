@@ -1,6 +1,0 @@
-Obtener el tamaño de la pantalla: Usamos ventana_info.winfo_screenwidth() y ventana_info.winfo_screenheight() para obtener las dimensiones de la pantalla.
-
-Definir el tamaño de la ventana de información: Le asignamos un tamaño fijo a la ventana emergente (ancho_ventana_info y alto_ventana_info).
-
-Calcular las coordenadas de la ventana emergente: Usamos una fórmula similar para calcular la posición de la ventana emergente y así centrarla en la pantalla.
-

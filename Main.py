@@ -26,9 +26,16 @@ def elegir_archivo():
 
 def mostrar_documentos():
     """Función para mostrar los documentos almacenados en ChromaDB"""
-    documentos, metadatos = chroma_db.obtener_documentos()
-    nombres_documentos = [metadata['nombre'] for metadata in metadatos if 'nombre' in metadata]
+    documentos, metadatos = chroma_db.obtener_documentos()  # Llamada a la clase Chroma
+
+    # Verificar si se obtuvieron documentos
+    if not documentos:
+        print("No se encontraron documentos en la base de datos.")
+        return [], []
+
+    nombres_documentos = [metadata.get('nombre', 'Sin nombre') for metadata in metadatos]
     return documentos, nombres_documentos
+
 
 def ver_informacion(nombre_documento, contenido):
     """Función para ver la información del documento en una ventana nueva"""
@@ -55,25 +62,66 @@ def ver_informacion(nombre_documento, contenido):
     scrollbar.pack(side="right", fill="y")
     text_box.config(yscrollcommand=scrollbar.set)
 
+def ver_informacion_completa():
+    """Función para mostrar toda la información de los documentos almacenados"""
+    documentos, metadatos = chroma_db.obtener_documentos()
+    
+    # Mostrar en consola
+    print("=== Información completa desde ChromaDB ===")
+    for i, doc in enumerate(documentos):
+        nombre = metadatos[i].get('nombre', 'Sin nombre')
+        print(f"\nDocumento {i+1}: {nombre}")
+        print(f"Contenido (primeros 500 caracteres):\n{doc[:500]}")
+    print("===========================================")
+
+    # Crear una ventana nueva para mostrar los documentos
+    ventana_info_completa = Toplevel()
+    ventana_info_completa.title("Información Completa de Documentos")
+
+    pantalla_ancho = ventana_info_completa.winfo_screenwidth()
+    pantalla_alto = ventana_info_completa.winfo_screenheight()
+
+    ancho_ventana_info = 600
+    alto_ventana_info = 400
+
+    x = (pantalla_ancho // 2) - (ancho_ventana_info // 2)
+    y = (pantalla_alto // 2) - (alto_ventana_info // 2)
+
+    ventana_info_completa.geometry(f"{ancho_ventana_info}x{alto_ventana_info}+{x}+{y}")
+
+    text_box = Text(ventana_info_completa, wrap="word", height=20, width=60)
+    text_box.config(state="normal")
+    
+    if documentos:
+        for i, doc in enumerate(documentos):
+            nombre = metadatos[i].get('nombre', 'Sin nombre')
+            contenido = doc[:500]
+            text_box.insert("end", f"Documento {i+1}: {nombre}\n{contenido}\n\n")
+    else:
+        text_box.insert("end", "No hay documentos almacenados.")
+    
+    text_box.config(state="disabled")
+    text_box.pack(padx=10, pady=10)
+
+    scrollbar = Scrollbar(ventana_info_completa, command=text_box.yview)
+    scrollbar.pack(side="right", fill="y")
+    text_box.config(yscrollcommand=scrollbar.set)
+
 
 def mostrar_ventana():
     """Configuración de la ventana principal con Tkinter"""
     root = Tk()
     root.title("Gestión de Documentos")
-    # Tamaño de la ventana
     ancho_ventana = 800
     alto_ventana = 600
 
-    # Obtener tamaño de pantalla
     pantalla_ancho = root.winfo_screenwidth()
     pantalla_alto = root.winfo_screenheight()
 
-    # Calcular posición x, y para centrar
     x = (pantalla_ancho // 2) - (ancho_ventana // 2)
     y = (pantalla_alto // 2) - (alto_ventana // 2)
 
     root.geometry(f"{ancho_ventana}x{alto_ventana}+{x}+{y}")
-
 
     label_titulo = Label(root, text="Gestión de Documentos", font=("Helvetica", 16))
     label_titulo.pack(pady=10)
@@ -106,6 +154,9 @@ def mostrar_ventana():
 
     boton_ver = Button(root, text="Ver Documentos", command=ver_documentos)
     boton_ver.pack(pady=10)
+
+    boton_ver_todos = Button(root, text="Ver Información Completa", command=ver_informacion_completa)
+    boton_ver_todos.pack(pady=10)
 
     root.mainloop()
 

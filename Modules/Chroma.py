@@ -46,6 +46,8 @@ class Chroma:
             self.guardar_documento_local(ruta_archivo, nombre_documento)
         except Exception as e:
             print(f"Error al guardar en ChromaDB: {e}")
+        self.imprimir_vectores()
+
 
     def guardar_documento_local(self, ruta_archivo, nombre_documento):
         """Guarda una copia local del documento en el directorio de persistencia."""
@@ -72,15 +74,25 @@ class Chroma:
         except Exception as e:
             print(f"Error al obtener documentos: {e}")
             return [], []
-
-    def mostrar_documentos_en_consola(self):
-        """Imprime en consola todos los documentos y sus metadatos almacenados."""
-        documentos, metadatos = self.obtener_documentos()
-        if not documentos:
-            print("No hay documentos almacenados.")
+        
+    def imprimir_vectores(self):
+        if not self.collection:
+            print("Colección no disponible.")
             return
-        print("\n📄 Documentos almacenados en ChromaDB:\n")
-        for i, (doc, meta) in enumerate(zip(documentos, metadatos), 1):
-            print(f"Documento {i}:")
-            print(f"  Contenido : {doc}")
-            print(f"  Metadatos : {meta}\n")
+
+        try:
+            resultado = self.collection.get(include=['documents', 'embeddings', 'metadatas'])
+
+            documentos = resultado.get('documents', [])
+            embeddings = resultado.get('embeddings', [])
+            metadatos = resultado.get('metadatas', [])
+
+            for i, (doc, emb, meta) in enumerate(zip(documentos, embeddings, metadatos)):
+                print(f"Documento {i+1}: {meta.get('nombre', 'Sin nombre')}")
+                print(f"Contenido (resumen): {doc[:100]}...")
+                print(f"Vector (embedding): {emb[:5]}... (total {len(emb)} dimensiones)")
+                print("-" * 80)
+
+        except Exception as e:
+            print(f"Error al obtener vectores: {e}")
+

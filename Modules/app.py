@@ -1,28 +1,29 @@
 import os
 from flask import Flask, request, jsonify
+from flask_cors import CORS  # ✅ Importa CORS
 
 from Modules.Chroma import Chroma          # Para manejar la base vectorial
 from Modules.Logic import procesar_archivo # Para procesar el contenido del archivo
 
-# instancia de la aplicación Flask
+# ✅ Instancia de la aplicación Flask
 app = Flask(__name__)
+CORS(app)  # ✅ Aplica CORS para permitir peticiones desde otros orígenes
 
-# Inicializa ChromaDB
+# ✅ Inicializa ChromaDB
 chroma = Chroma()
 
-# Define una carpeta temporal para guardar archivos cargados
+# ✅ Carpeta temporal para guardar archivos cargados
 UPLOAD_FOLDER = './tmp'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)  # Crea la carpeta si no existe
 
 
 @app.route('/')
 def inicio():
-    return " API Flask para documentos con ChromaDB"
+    return "API Flask para documentos con ChromaDB"
 
 
 @app.route('/subir', methods=['POST'])
 def subir_documento():
-    
     if 'archivo' not in request.files:
         return jsonify({"error": "No se envió ningún archivo"}), 400
 
@@ -36,7 +37,7 @@ def subir_documento():
         ruta = os.path.join(UPLOAD_FOLDER, nombre)
         archivo.save(ruta)
 
-        # lee y genera embeddings
+        # Lee y genera embeddings
         contenido = procesar_archivo(ruta)
 
         # Guarda el contenido vectorizado en ChromaDB y también copia local
@@ -61,6 +62,5 @@ def obtener_documentos():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# Punto de entrada principal: arranca la app en modo debug en el puerto 5000
-if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+
+

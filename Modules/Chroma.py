@@ -1,14 +1,18 @@
 import os
-from chromadb import PersistentClient
+from chromadb import HttpClient
 
-#Api de chroma
+#api de chroma
 class Chroma:
     def __init__(self, persist_directory="./chroma_db"):
         self.directorio_persistente = persist_directory
         os.makedirs(self.directorio_persistente, exist_ok=True)
 
         try:
-            self.client = PersistentClient(path=self.directorio_persistente)
+            CHROMA_HOST = os.getenv("CHROMADB_HOST", "localhost")  # Cambia CHROMA por CHROMADB
+            CHROMA_PORT = os.getenv("CHROMADB_PORT", "8000")
+
+
+            self.client = HttpClient(host=CHROMA_HOST, port=int(CHROMA_PORT))
             print("Cliente de ChromaDB inicializado con persistencia")
         except Exception as e:
             print(f"Error al inicializar el cliente de ChromaDB: {e}")
@@ -49,6 +53,8 @@ class Chroma:
         self.imprimir_vectores()
 
 
+
+
     def guardar_documento_local(self, ruta_archivo, nombre_documento):
         """Guarda una copia local del documento en el directorio de persistencia."""
         try:
@@ -58,6 +64,8 @@ class Chroma:
             print(f"Documento '{nombre_documento}' guardado localmente en: {destino}")
         except Exception as e:
             print(f"Error al guardar el archivo localmente: {e}")
+
+
 
     def obtener_documentos(self):
         """Recupera todos los documentos almacenados junto con sus metadatos."""
@@ -74,6 +82,8 @@ class Chroma:
         except Exception as e:
             print(f"Error al obtener documentos: {e}")
             return [], []
+        
+
         
     def imprimir_vectores(self):
         if not self.collection:
@@ -96,3 +106,57 @@ class Chroma:
         except Exception as e:
             print(f"Error al obtener vectores: {e}")
 
+
+
+    def eliminar_documento(self, nombre_documento):
+        """Elimina un documento de ChromaDB y del almacenamiento local."""
+        if not self.collection:
+            print("Colección no disponible.")
+            return
+
+        try:
+            # Eliminar de la colección ChromaDB
+            self.collection.delete(ids=[nombre_documento])
+            print(f"Documento '{nombre_documento}' eliminado de ChromaDB.")
+
+            # Eliminar del almacenamiento local
+            ruta_local = os.path.join(self.directorio_persistente, nombre_documento)
+            if os.path.exists(ruta_local):
+                os.remove(ruta_local)
+                print(f"Documento '{nombre_documento}' eliminado localmente.")
+            else:
+                print(f"No se encontró el archivo local '{nombre_documento}' para eliminar.")
+        except Exception as e:
+            print(f"Error al eliminar el documento '{nombre_documento}': {e}")
+
+
+
+
+
+def buscar_documentos(self, texto_consulta, cantidad_resultados=3):
+    """
+    Busca documentos en ChromaDB similares al texto de consulta.
+
+    :param texto_consulta: Texto para buscar en la base de datos.
+    :param cantidad_resultados: Número máximo de resultados a devolver.
+    :return: Lista de diccionarios con documentos y sus metadatos.
+    """
+    if not self.collection:
+        return []
+
+    try:
+        resultados = self.collection.query(
+            query_texts=[texto_consulta],
+            n_results=cantidad_resultados
+        )
+        documentos = resultados.get('documents', [[]])[0]  # lista de strings
+        metadatos = resultados.get('metadatas', [[]])[0]  # lista de dicts
+
+        combinados = [
+            {"contenido": doc, "metadatos": meta}
+            for doc, meta in zip(documentos, metadatos)
+        ]
+        return combinados
+
+    except Exception as e:
+        return []

@@ -2,6 +2,8 @@ import os
 from tkinter import Tk, filedialog, Button, Label, Toplevel, Scrollbar, Text, Frame
 from Modules.Logic import procesar_archivo
 from Modules.Chroma import Chroma
+from tkinter import messagebox
+from tkinter import Entry
 
 class GUI:
     def __init__(self):
@@ -110,8 +112,30 @@ class GUI:
         boton_abrir = Button(root, text="Abrir Documento", command=self.elegir_archivo)
         boton_abrir.pack(pady=10)
 
+        # Barra de búsqueda
+        label_busqueda = Label(root, text="Buscar documento:")
+        label_busqueda.pack()
+
+        entrada_busqueda = Entry(root, width=50)
+        entrada_busqueda.pack(pady=5)
+
+        def eliminar_y_refrescar(nombre_documento):
+            confirmacion = messagebox.askyesno("Confirmar eliminación", f"¿Deseas eliminar el documento '{nombre_documento}'?")
+            if confirmacion:
+                self.chroma_db.eliminar_documento(nombre_documento)
+                messagebox.showinfo("Eliminado", f"El documento '{nombre_documento}' fue eliminado.")
+                ver_documentos()
+
         def ver_documentos():
             documentos, nombres_documentos = self.mostrar_documentos()
+            termino_busqueda = entrada_busqueda.get().lower()
+
+            # Filtrar por término de búsqueda
+            if termino_busqueda:
+                resultados = [(doc, nombre) for doc, nombre in zip(documentos, nombres_documentos) if termino_busqueda in nombre.lower()]
+                documentos, nombres_documentos = zip(*resultados) if resultados else ([], [])
+            else:
+                resultados = list(zip(documentos, nombres_documentos))
 
             for widget in root.winfo_children():
                 if isinstance(widget, Frame):
@@ -128,8 +152,12 @@ class GUI:
                     label_doc.pack(side="left", padx=10)
 
                     boton_info = Button(frame, text="Ver Información",
-                                        command=lambda i=i: self.ver_informacion(nombres_documentos[i], documentos[i]))
+                        command=lambda i=i: self.ver_informacion(nombres_documentos[i], documentos[i]))
                     boton_info.pack(side="left", padx=10)
+
+                    boton_eliminar = Button(frame, text="Eliminar", fg="red",
+                        command=lambda i=i: eliminar_y_refrescar(nombres_documentos[i]))
+                    boton_eliminar.pack(side="left", padx=10)
             else:
                 mensaje = Label(root, text="No hay documentos guardados.", font=("Helvetica", 12))
                 mensaje.pack(pady=10)

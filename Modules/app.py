@@ -1,25 +1,22 @@
 import os
 from flask import Flask, request, jsonify
-from flask_cors import CORS  # ✅ Importa CORS
+from flask_cors import CORS 
 
-from Modules.Chroma import Chroma          # Para manejar la base vectorial
-from Modules.Logic import procesar_archivo # Para procesar el contenido del archivo
+from Modules.Chroma import Chroma         
+from Modules.Logic import procesar_archivo 
 
-# ✅ Instancia de la aplicación Flask
 app = Flask(__name__)
-CORS(app)  # ✅ Aplica CORS para permitir peticiones desde otros orígenes
+CORS(app) 
 
-# ✅ Inicializa ChromaDB
 chroma = Chroma()
 
-# ✅ Carpeta temporal para guardar archivos cargados
 UPLOAD_FOLDER = './tmp'
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)  # Crea la carpeta si no existe
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)  
 
 
 @app.route('/')
 def inicio():
-    return "API Flask para documentos con ChromaDB"
+    return "API LISTA"
 
 
 @app.route('/subir', methods=['POST'])
@@ -32,15 +29,12 @@ def subir_documento():
         return jsonify({"error": "Nombre de archivo vacío"}), 400
 
     try:
-        # Guarda el archivo recibido en la carpeta temporal
         nombre = archivo.filename
         ruta = os.path.join(UPLOAD_FOLDER, nombre)
         archivo.save(ruta)
 
-        # Lee y genera embeddings
         contenido = procesar_archivo(ruta)
 
-        # Guarda el contenido vectorizado en ChromaDB y también copia local
         chroma.guardar_documento(contenido, nombre, ruta)
 
         return jsonify({"mensaje": f"Documento '{nombre}' guardado exitosamente"})
@@ -51,7 +45,6 @@ def subir_documento():
 @app.route('/documentos', methods=['GET'])
 def obtener_documentos():
     try:
-        # Recupera documentos y sus metadatos desde ChromaDB
         documentos, metadatos = chroma.obtener_documentos()
 
         lista = [
@@ -63,4 +56,49 @@ def obtener_documentos():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/documento/<nombre>', methods=['GET'])
+def ver_documento(nombre):
+    try:
+        documentos, metadatos = chroma.obtener_documentos()
+        for doc, meta in zip(documentos, metadatos):
+            if meta.get("nombre") == nombre:
+                return jsonify({
+                    "nombre": nombre,
+                    "contenido": doc,
+                    "metadatos": meta
+                })
+        return jsonify({"error": f"Documento '{nombre}' no encontrado"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
+
+@app.route('/documento/<nombre>', methods=['DELETE'])
+def eliminar_documento(nombre):
+    try:
+        chroma.eliminar_documento(nombre)
+        return jsonify({"mensaje": f"Documento '{nombre}' eliminado exitosamente"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+
+@app.route('/buscar', methods=['GET'])
+def buscar_documentos():
+    palabra = request.args.get('q', '').lower()
+    
+    if not palabra:
+        return jsonify({"error": "Se requiere un parámetro de búsqueda (q)"}), 400
+
+    try:
+        documentos, metadatos = chroma.obtener_documentos()
+        resultados = []
+
+        for doc, meta in zip(documentos, metadatos):
+            if palabra in doc.lower():
+                resultados.append({
+                    "nombre": meta.get("nombre", "sin nombre"),
+                    "contenido": doc[:500] 
+                })
+
+        return jsonify(resultados)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

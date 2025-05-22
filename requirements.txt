@@ -1,0 +1,9 @@
+chromadb
+pandas
+openpyxl
+PyPDF2
+tk
+python-docx
+flask
+flask_cors
+chardet

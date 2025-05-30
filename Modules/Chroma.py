@@ -1,162 +1,229 @@
 import os
 from chromadb import HttpClient
+import spacy
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
-#api de chroma
 class Chroma:
     def __init__(self, persist_directory="./chroma_db"):
         self.directorio_persistente = persist_directory
         os.makedirs(self.directorio_persistente, exist_ok=True)
 
         try:
-            CHROMA_HOST = os.getenv("CHROMADB_HOST", "localhost")  # Cambia CHROMA por CHROMADB
+            CHROMA_HOST = os.getenv("CHROMADB_HOST", "chromadb")
             CHROMA_PORT = os.getenv("CHROMADB_PORT", "8000")
-
-
             self.client = HttpClient(host=CHROMA_HOST, port=int(CHROMA_PORT))
-            print("Cliente de ChromaDB inicializado con persistencia")
         except Exception as e:
-            print(f"Error al inicializar el cliente de ChromaDB: {e}")
             self.client = None
 
         self.verificar_colecciones()
 
+        try:
+            self.nlp = spacy.load("es_core_news_sm")
+        except Exception as e:
+            print(f"Error al cargar el modelo de Spacy: {e}")
+            self.nlp = None
+
     def verificar_colecciones(self):
-        """Crea o accede a la colección de documentos."""
         if not self.client:
-            print("Cliente de ChromaDB no disponible.")
+            print("No hay cliente para crear o recuperar la colección.")
             self.collection = None
             return
 
         try:
             self.collection = self.client.get_or_create_collection(name="documentos")
-            print("Colección 'documentos' lista para usar.")
+            print("Colección 'documentos' lista.")
         except Exception as e:
-            print(f"Error al obtener/crear colección: {e}")
+            print(f"Error al crear o recuperar la colección: {e}")
             self.collection = None
 
-    def guardar_documento(self, contenido, nombre_documento, ruta_archivo):
-        """Guarda el documento tanto en ChromaDB como localmente."""
+
+
+    def buscar_coincidencias(self, termino: str, umbral_similitud=0.2):
         if not self.collection:
-            print("Colección no disponible.")
-            return
-
-        try:
-            self.collection.add( #hace la coleccion
-                documents=[contenido],
-                metadatas=[{"nombre": nombre_documento}],
-                ids=[nombre_documento]
-            )
-            print(f"Documento '{nombre_documento}' guardado en ChromaDB.")
-            self.guardar_documento_local(ruta_archivo, nombre_documento)
-        except Exception as e:
-            print(f"Error al guardar en ChromaDB: {e}")
-        self.imprimir_vectores()
-
-
-
-
-    def guardar_documento_local(self, ruta_archivo, nombre_documento):
-        """Guarda una copia local del documento en el directorio de persistencia."""
-        try:
-            destino = os.path.join(self.directorio_persistente, nombre_documento)
-            with open(ruta_archivo, 'rb') as archivo_origen, open(destino, 'wb') as archivo_destino:
-                archivo_destino.write(archivo_origen.read())
-            print(f"Documento '{nombre_documento}' guardado localmente en: {destino}")
-        except Exception as e:
-            print(f"Error al guardar el archivo localmente: {e}")
-
-
-
-    def obtener_documentos(self):
-        """Recupera todos los documentos almacenados junto con sus metadatos."""
-        if not self.collection:
-            print("Colección no disponible.")
-            return [], []
+            return []
 
         try:
             resultado = self.collection.get()
-            documentos = resultado.get('documents', [])
-            metadatos = resultado.get('metadatas', [])
-            print(f"Se recuperaron {len(documentos)} documento(s) desde ChromaDB.")
-            return documentos, metadatos
-        except Exception as e:
-            print(f"Error al obtener documentos: {e}")
-            return [], []
-        
+            documentos = resultado.get("documents", [])
+            metadatos = resultado.get("metadatas", [])
 
-        
-    def imprimir_vectores(self):
+            if not documentos:
+                print("No se encontraron documentos en la base de datos.")
+                return []
+
+            vectorizer = TfidfVectorizer().fit_transform([termino] + documentos)
+            vectors = vectorizer.toarray()
+
+            similitudes = cosine_similarity(vectors[0:1], vectors[1:]).flatten()
+
+            coincidencias = []
+            for doc, meta, similitud in zip(documentos, metadatos, similitudes):
+                if similitud >= umbral_similitud:
+                    coincidencias.append({
+                        "nombre": meta.get("nombre", "sin nombre"),
+                        "contenido": doc,
+                        "metadatos": meta,
+                        "similitud": float(similitud)
+                    })
+
+            # Ordenar las coincidencias por similitud descendente
+            coincidencias.sort(key=lambda x: x["similitud"], reverse=True)
+
+            for coincidencia in coincidencias:
+                print(f"Coincidencia encontrada en '{coincidencia['nombre']}' con similitud {coincidencia['similitud']}:")
+                print(coincidencia['contenido'])
+                print("---")
+
+            return coincidencias
+
+        except Exception as e:
+            print(f"Error al buscar coincidencias: {e}")
+            return []
+
+
+
+
+
+
+
+
+
+
+    def dividir_en_chunks(self, texto):
+        # Dividir el texto en párrafos usando saltos de línea
+        parrafos = texto.split('\n')
+        # Filtrar párrafos vacíos
+        parrafos = [p for p in parrafos if p.strip() != ""]
+        return parrafos
+
+    def guardar_documento(self, contenido, nombre_documento):
         if not self.collection:
-            print("Colección no disponible.")
+            print("No hay colección disponible para guardar el documento.")
             return
 
         try:
-            resultado = self.collection.get(include=['documents', 'embeddings', 'metadatas'])
+            print(f"Iniciando guardado del documento '{nombre_documento}'...")
+            chunks = self.dividir_en_chunks(contenido)
+            print(f"Documento dividido en {len(chunks)} fragmento(s).")
 
-            documentos = resultado.get('documents', [])
-            embeddings = resultado.get('embeddings', [])
-            metadatos = resultado.get('metadatas', [])
+            documents = []
+            metadatas = []
+            ids = []
 
-            for i, (doc, emb, meta) in enumerate(zip(documentos, embeddings, metadatos)):
-                print(f"Documento {i+1}: {meta.get('nombre', 'Sin nombre')}")
-                print(f"Contenido (resumen): {doc[:100]}...")
-                print(f"Vector (embedding): {emb[:5]}... (total {len(emb)} dimensiones)")
-                print("-" * 80)
+            for i, fragmento in enumerate(chunks):
+                fragment_id = f"{nombre_documento}_chunk_{i+1}"
+                documents.append(fragmento)
+                metadatas.append({
+                    "nombre": nombre_documento,
+                    "chunk_index": i + 1,
+                    "total_chunks": len(chunks)
+                })
+                ids.append(fragment_id)
+                print(f"Preparado fragmento {i+1} con id '{fragment_id}'.")
+
+            self.collection.add(documents=documents, metadatas=metadatas, ids=ids)
+            print(f"Documento '{nombre_documento}' guardado correctamente con {len(chunks)} fragmento(s).")
 
         except Exception as e:
-            print(f"Error al obtener vectores: {e}")
+            print(f"Error al guardar el documento '{nombre_documento}': {e}")
 
+    def reconstruir_documento(self, nombre_documento):
+        if not self.collection:
+            return None
 
+        try:
+            resultado = self.collection.get()
+            documentos = resultado.get("documents", [])
+            metadatos = resultado.get("metadatas", [])
+
+            fragmentos = [
+                (meta["chunk_index"], doc)
+                for doc, meta in zip(documentos, metadatos)
+                if meta.get("nombre") == nombre_documento
+            ]
+
+            if not fragmentos:
+                return None
+
+            fragmentos.sort(key=lambda x: x[0])
+            texto_completo = "\n".join([frag[1] for frag in fragmentos])
+            return texto_completo
+
+        except Exception as e:
+            return None
 
     def eliminar_documento(self, nombre_documento):
-        """Elimina un documento de ChromaDB y del almacenamiento local."""
         if not self.collection:
-            print("Colección no disponible.")
             return
 
         try:
-            # Eliminar de la colección ChromaDB
-            self.collection.delete(ids=[nombre_documento])
-            print(f"Documento '{nombre_documento}' eliminado de ChromaDB.")
+            resultado = self.collection.get()
+            metadatos = resultado.get("metadatas", [])
+            ids_a_eliminar = [
+                resultado["ids"][i]
+                for i, meta in enumerate(metadatos)
+                if meta.get("nombre") == nombre_documento
+            ]
 
-            # Eliminar del almacenamiento local
-            ruta_local = os.path.join(self.directorio_persistente, nombre_documento)
-            if os.path.exists(ruta_local):
-                os.remove(ruta_local)
-                print(f"Documento '{nombre_documento}' eliminado localmente.")
-            else:
-                print(f"No se encontró el archivo local '{nombre_documento}' para eliminar.")
+            if ids_a_eliminar:
+                self.collection.delete(ids=ids_a_eliminar)
+
         except Exception as e:
-            print(f"Error al eliminar el documento '{nombre_documento}': {e}")
+            pass
 
+    def imprimir_base_datos_completa(self):
+        if not self.collection:
+            print("No hay colección para mostrar.")
+            return
 
+        try:
+            resultado = self.collection.get(include=['documents', 'metadatas', 'ids', 'embeddings'])
 
+            documentos = resultado.get('documents', [])
+            metadatos = resultado.get('metadatas', [])
+            ids = resultado.get('ids', [])
+            embeddings = resultado.get('embeddings', [])
 
+            print(f"Total registros en la base de datos: {len(documentos)}")
+            print("---------------------------------------------------")
 
-def buscar_documentos(self, texto_consulta, cantidad_resultados=3):
-    """
-    Busca documentos en ChromaDB similares al texto de consulta.
+            for i, (doc, meta, id_, emb) in enumerate(zip(documentos, metadatos, ids, embeddings)):
+                print(f"Registro #{i+1}")
+                print(f"ID: {id_}")
+                print(f"Documento: {doc}")
+                print(f"Metadatos: {meta}")
+                print(f"Embedding (primeros 5 valores): {emb[:5] if emb else 'No disponible'}")
+                print("---------------------------------------------------")
 
-    :param texto_consulta: Texto para buscar en la base de datos.
-    :param cantidad_resultados: Número máximo de resultados a devolver.
-    :return: Lista de diccionarios con documentos y sus metadatos.
-    """
-    if not self.collection:
-        return []
+        except Exception as e:
+            print(f"Error al imprimir la base de datos: {e}")
 
-    try:
-        resultados = self.collection.query(
-            query_texts=[texto_consulta],
-            n_results=cantidad_resultados
-        )
-        documentos = resultados.get('documents', [[]])[0]  # lista de strings
-        metadatos = resultados.get('metadatas', [[]])[0]  # lista de dicts
+    def armar_documentos(self):
+        if not self.collection:
+            return {}
 
-        combinados = [
-            {"contenido": doc, "metadatos": meta}
-            for doc, meta in zip(documentos, metadatos)
-        ]
-        return combinados
+        try:
+            resultado = self.collection.get()
+            documentos = resultado.get("documents", [])
+            metadatos = resultado.get("metadatas", [])
 
-    except Exception as e:
-        return []
+            documentos_armados = {}
+
+            fragmentos_por_doc = {}
+            for doc, meta in zip(documentos, metadatos):
+                nombre = meta.get("nombre")
+                index = meta.get("chunk_index", 0)
+                if nombre not in fragmentos_por_doc:
+                    fragmentos_por_doc[nombre] = []
+                fragmentos_por_doc[nombre].append((index, doc))
+
+            for nombre, fragmentos in fragmentos_por_doc.items():
+                fragmentos.sort(key=lambda x: x[0])
+                texto_completo = "\n".join([frag[1] for frag in fragmentos])
+                documentos_armados[nombre] = texto_completo
+
+            return documentos_armados
+
+        except Exception as e:
+            return {}

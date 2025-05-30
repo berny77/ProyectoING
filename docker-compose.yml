@@ -9,7 +9,20 @@ services:
     networks:
       - chromanet
     volumes:
-      - ./chroma_db_data:/chroma/chroma  
+      - ./chroma_db_data:/chroma/chroma
+
+  app:
+    build: .
+    container_name: app
+    networks:
+      - chromanet
+    depends_on:
+      - chromadb
+    ports:
+      - "5000:5000"
+    environment:
+      - CHROMADB_HOST=chromadb
+      - CHROMADB_PORT=8000
 
 networks:
   chromanet:

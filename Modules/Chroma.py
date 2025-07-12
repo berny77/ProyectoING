@@ -67,7 +67,7 @@ class Chroma:
                         "similitud": float(similitud)
                     })
 
-            # Ordenar las coincidencias por similitud descendente
+            # ordenar las coincidencias por similitud descendente, en funcion de lo que viene por parametros (revisar parametro)
             coincidencias.sort(key=lambda x: x["similitud"], reverse=True)
 
             for coincidencia in coincidencias:
